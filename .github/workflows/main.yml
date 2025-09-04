@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Terraform-aws-ci-cd/ec2/main
+        working-directory: ec2/main
     steps:
       - uses: actions/checkout@v4
 
