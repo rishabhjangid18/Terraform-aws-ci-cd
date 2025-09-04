@@ -5,9 +5,10 @@ on:
     branches: [ "main" ]
     paths:
       - 'ec2/main/**'
+  workflow_dispatch:   # 👈 allows manual run
 
 permissions:
-  id-token: write   # needed for OIDC
+  id-token: write
   contents: read
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ec2/main   # 👈 correct path
+        working-directory: ec2/main
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,3 +40,7 @@ jobs:
 
       - name: Terraform Plan
         run: terraform plan
+
+      - name: Terraform Apply
+        if: github.event_name == 'workflow_dispatch'   # 👈 only on manual trigger
+        run: terraform apply -auto-approve
