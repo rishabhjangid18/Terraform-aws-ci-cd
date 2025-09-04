@@ -1,82 +1,107 @@
 terraform {
+  required_version = ">= 1.5.0"
+
   required_providers {
     aws = {
-      source = "hashicorp/aws"
-      version = "6.3.0"
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
+  }
+
+  # Remote backend (recommended for client projects)
+  backend "s3" {
+    bucket         = "my-terraform-states"   # <-- create this bucket manually
+    key            = "ec2/terraform.tfstate"
+    region         = "ap-south-1"
+    dynamodb_table = "terraform-locks"       # <-- create this DynamoDB table manually
+    encrypt        = true
   }
 }
 
-#key-pain
-resource "aws_key_pair" "my_key" {
-    key_name = "terra-key-ec2"
-    public_key = file("terra-key.pub")
+provider "aws" {
+  region = "ap-south-1"
 }
 
-#vpc
-resource "aws_default_vpc" "default" {
-  
+# 🔑 Key Pair
+resource "aws_key_pair" "this" {
+  key_name   = "terra-key-ec2"
+  public_key = file("${path.module}/terra-key.pub")
 }
 
-#security group
-resource "aws_security_group" "mysggroup" {
-    name = "terra-sg"
-    description = "created with terrafrom"
-    vpc_id = aws_default_vpc.default.id
-    
-    #inbound
-    ingress {
-        from_port = 22
-        to_port = 22
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-        description = "ssh port"
-    }
+# 🌐 Default VPC (safe for demo)
+resource "aws_default_vpc" "default" {}
 
-    ingress {
-        to_port = 80
-        from_port = 80
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-        description = "http port"
-    }
+# 🔒 Security Group
+resource "aws_security_group" "this" {
+  name        = "terraform-sg"
+  description = "Managed by Terraform"
+  vpc_id      = aws_default_vpc.default.id
 
-    ingress {
-        from_port = 443
-        to_port = 443
-        protocol = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-        description = "https port"
-    }
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-    #outbound
-    egress {
-        from_port = 0
-        to_port = 0
-        protocol = "-1"
-        cidr_blocks = ["0.0.0.0/0"]
-        description = "all access open outbound"
-    }
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-    tags = {
-        Name = "automte-sg"
-    }
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow all outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "terraform-sg"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+  }
 }
 
+# 📦 Find Latest Amazon Linux 2023 AMI
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
 
-#ec2 instance
-resource "aws_instance" "terra-instance" {
-      key_name = aws_key_pair.my_key.key_name
-      security_groups = [aws_security_group.mysggroup.name]
-      instance_type = "t2.micro"
-      ami = "ami-0f918f7e67a3323f0"
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+}
 
-      root_block_device {
-        volume_size = 10
-        volume_type = "gp3"
-      }
+# 💻 EC2 Instance
+resource "aws_instance" "this" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "t2.micro"
+  key_name               = aws_key_pair.this.key_name
+  vpc_security_group_ids = [aws_security_group.this.id]
 
-      tags = {
-        Name = "Terraform-created"
-      }
+  root_block_device {
+    volume_size = 10
+    volume_type = "gp3"
+  }
+
+  tags = {
+    Name        = "Terraform-EC2"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+  }
 }
