@@ -1,0 +1,32 @@
+name: Terraform CI/CD with OIDC
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write   # Needed for OIDC
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Terraform-aws-ci-cd/ec2/main
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::058264346116:role/TerraformGitHubRole
+          aws-region: ap-south-1  # change to your region
+
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan
