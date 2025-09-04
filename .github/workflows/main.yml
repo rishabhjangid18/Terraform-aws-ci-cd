@@ -1,11 +1,13 @@
-name: Terraform CI/CD with OIDC
+name: Terraform CI/CD (EC2)
 
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'ec2/main/**'
 
 permissions:
-  id-token: write   # Needed for OIDC
+  id-token: write   # needed for OIDC
   contents: read
 
 jobs:
@@ -13,11 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ec2/main
+        working-directory: ec2/main   # 👈 correct path
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.6
 
@@ -25,8 +29,13 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::058264346116:role/TerraformGitHubRole
-          aws-region: ap-south-1  # change to your region
+          aws-region: ap-south-1
 
-      - run: terraform init
-      - run: terraform validate
-      - run: terraform plan
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan
