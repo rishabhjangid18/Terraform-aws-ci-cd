@@ -1,11 +1,11 @@
-name: Terraform CI/CD (EC2)
+name: Terraform CI/CD
 
 on:
   push:
     branches: [ "main" ]
     paths:
       - 'ec2/main/**'
-  workflow_dispatch:   # 👈 allows manual run
+  workflow_dispatch:   # manual trigger
 
 permissions:
   id-token: write
@@ -40,7 +40,3 @@ jobs:
 
       - name: Terraform Plan
         run: terraform plan
-
-      - name: Terraform Apply
-        if: github.event_name == 'workflow_dispatch'   # 👈 only on manual trigger
-        run: terraform apply -auto-approve
