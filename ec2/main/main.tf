@@ -4,95 +4,81 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 
-  # Remote backend (recommended for client projects)
   backend "s3" {
-    bucket         = "my-terraform-states"   # <-- create this bucket manually
-    key            = "ec2/terraform.tfstate"
-    region         = "ap-south-1"
-    dynamodb_table = "terraform-locks"       # <-- create this DynamoDB table manually
+    bucket         = "my-terraform-states"   # your S3 bucket
+    key            = "ec2/terraform.tfstate" # path inside bucket
+    region         = "eu-west-1"             # FIXED: actual bucket region
+    dynamodb_table = "terraform-locks"       # DynamoDB for state locking
     encrypt        = true
   }
 }
 
 provider "aws" {
-  region = "ap-south-1"
+  region = "ap-south-1" # resources will still deploy in Mumbai region
 }
 
-# 🔑 Key Pair
-resource "aws_key_pair" "this" {
+# Key Pair
+resource "aws_key_pair" "my_key" {
   key_name   = "terra-key-ec2"
   public_key = file("${path.module}/terra-key.pub")
 }
 
-# 🌐 Default VPC (safe for demo)
+# Default VPC
 resource "aws_default_vpc" "default" {}
 
-# 🔒 Security Group
-resource "aws_security_group" "this" {
-  name        = "terraform-sg"
-  description = "Managed by Terraform"
+# Security Group
+resource "aws_security_group" "mysggroup" {
+  name        = "terra-sg"
+  description = "Created with Terraform"
   vpc_id      = aws_default_vpc.default.id
 
   ingress {
-    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH"
   }
 
   ingress {
-    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTP"
   }
 
   ingress {
-    description = "HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTPS"
   }
 
   egress {
-    description = "Allow all outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+    description = "All outbound"
   }
 
   tags = {
-    Name        = "terraform-sg"
-    Environment = "dev"
-    ManagedBy   = "Terraform"
+    Name = "automate-sg"
   }
 }
 
-# 📦 Find Latest Amazon Linux 2023 AMI
-data "aws_ami" "amazon_linux" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-}
-
-# 💻 EC2 Instance
-resource "aws_instance" "this" {
-  ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t2.micro"
-  key_name               = aws_key_pair.this.key_name
-  vpc_security_group_ids = [aws_security_group.this.id]
+# EC2 Instance
+resource "aws_instance" "terra_instance" {
+  ami           = "ami-0f918f7e67a3323f0"
+  instance_type = "t2.micro"
+  key_name      = aws_key_pair.my_key.key_name
+  vpc_security_group_ids = [aws_security_group.mysggroup.id]
 
   root_block_device {
     volume_size = 10
@@ -100,8 +86,6 @@ resource "aws_instance" "this" {
   }
 
   tags = {
-    Name        = "Terraform-EC2"
-    Environment = "dev"
-    ManagedBy   = "Terraform"
+    Name = "Terraform-created"
   }
 }
