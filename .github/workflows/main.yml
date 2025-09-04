@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'ec2/main/**'
-  workflow_dispatch:   # manual trigger
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -17,6 +17,7 @@ jobs:
     defaults:
       run:
         working-directory: ec2/main
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,13 +31,24 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::058264346116:role/TerraformGitHubRole
-          aws-region: ap-south-1
+          aws-region: eu-west-1   # must match your S3 + DynamoDB region
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan
+        run: terraform plan -out=tfplan
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: ec2/main/tfplan
+
+      # Optional - only run on manual approval
+      - name: Terraform Apply
+        if: github.event_name == 'workflow_dispatch'
+        run: terraform apply -auto-approve tfplan
