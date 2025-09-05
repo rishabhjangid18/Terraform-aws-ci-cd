@@ -11,23 +11,28 @@ terraform {
   backend "s3" {
     bucket         = "my-terraform-states"   # your S3 bucket
     key            = "ec2/terraform.tfstate" # path inside bucket
-    region         = "eu-west-1"             # FIXED: actual bucket region
+    region         = "ap-south-1"            # must match actual bucket region
     dynamodb_table = "terraform-locks"       # DynamoDB for state locking
     encrypt        = true
   }
 }
 
 provider "aws" {
-  region = "ap-south-1" # resources will still deploy in Mumbai region
+  region = "ap-south-1"
 }
 
-# Key Pair
+# Generate Key Pair (instead of local file)
+resource "tls_private_key" "example" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
 resource "aws_key_pair" "my_key" {
   key_name   = "terra-key-ec2"
-  public_key = file("${path.module}/terra-key.pub")
+  public_key = tls_private_key.example.public_key_openssh
 }
 
-# Default VPC
+# Use default VPC (ensure it exists)
 resource "aws_default_vpc" "default" {}
 
 # Security Group
@@ -73,9 +78,20 @@ resource "aws_security_group" "mysggroup" {
   }
 }
 
+# Get Latest Amazon Linux 2 AMI
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+}
+
 # EC2 Instance
 resource "aws_instance" "terra_instance" {
-  ami           = "ami-0f918f7e67a3323f0"
+  ami           = data.aws_ami.amazon_linux.id
   instance_type = "t2.micro"
   key_name      = aws_key_pair.my_key.key_name
   vpc_security_group_ids = [aws_security_group.mysggroup.id]
