@@ -1,54 +1,61 @@
-name: Terraform CI/CD
+name: Terraform EC2 Deployment
 
 on:
   push:
-    branches: [ "main" ]
-    paths:
-      - 'ec2/main/**'
-  workflow_dispatch:
-
-permissions:
-  id-token: write
-  contents: read
+    branches:
+      - main
+  pull_request: # run plan on PRs
+  workflow_dispatch: # allow manual trigger
 
 jobs:
   terraform:
+    name: Terraform Plan & Apply
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ec2/main
+
+    env:
+      AWS_REGION: ap-south-1
+      TF_LOG: INFO
+      TF_INPUT: false
 
     steps:
-      - name: Checkout code
+      # 1. Checkout Repo
+      - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 2. Configure AWS credentials (from GitHub Secrets)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3. Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.9.6
+          terraform_version: 1.7.5
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::058264346116:role/TerraformGitHubRole
-          aws-region: eu-west-1   # must match your S3 + DynamoDB region
-
+      # 4. Terraform Init
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init
 
+      # 5. Terraform Validate
       - name: Terraform Validate
         run: terraform validate
 
+      # 6. Terraform Plan
       - name: Terraform Plan
         run: terraform plan -out=tfplan
 
-      - name: Upload Plan Artifact
+      # 7. Save plan as artifact (so it can be reviewed if needed)
+      - name: Upload plan file
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: ec2/main/tfplan
+          path: tfplan
 
-      # Optional - only run on manual approval
+      # 8. Terraform Apply (only on push to main, not on PRs)
       - name: Terraform Apply
-        if: github.event_name == 'workflow_dispatch'
+        if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
